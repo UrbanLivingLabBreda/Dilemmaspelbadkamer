@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dilemma Spel - Slimme Badkamer</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --wit: #fff;
+            --lichtblauw: #d5ebf7;
+            --blauw: #2c9dd8;
+            --lichtgrijs: #fafafa;
+            --roze: #ffdddf;
+            --rood: #e42f38;
+            --grijs: #7d7d7d;
+            --zwart: #000;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: var(--lichtgrijs);
+            background-image: url('achtergrondbadkamer.png');
+            background-repeat: repeat;
+            background-size: 800px;
+            background-attachment: fixed;
+            padding: 40px 20px;
+            color: var(--zwart);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: var(--wit);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.05);
+            font-size: 1.25rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .button {
+            padding: 20px;
+            margin: 20px 0;
+            border: none;
+            background-color: var(--rood);
+            color: var(--wit);
+            font-size: 1.25rem;
+            cursor: pointer;
+            border-radius: 12px;
+            width: 100%;
+        }
+
+        .button:hover {
+            background-color: var(--blauw);
+        }
+
+        #dilemmaGame button {
+            width: 48%;
+            display: inline-block;
+        }
+
+        #dilemmaText {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        select,
+        input[type='number'] {
+            padding: 10px;
+            font-size: 1.2rem;
+            width: 100%;
+            margin: 10px 0 20px;
+            border: 1px solid var(--grijs);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--grijs);
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: var(--lichtblauw);
+        }
+
+        .fixed-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .logo-fixed {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+        }
+
+        .logo-fixed img {
+            height: 45px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="welcome">
+        <h2 style="text-align: center;">Welkom bij het slimme badkamer dilemma spel!</h2>
+        <p style="text-align: center;">Mag ULLB je gegevens opslaan voor onderzoek?</p>
+        <button class="button" onclick="acceptDataSharing(true)">Ja</button>
+        <button class="button" onclick="acceptDataSharing(false)">Nee</button>
+    </div>
+
+    <div class="container hidden" id="userInfo">
+        <h3 style="text-align: center;">Vul je gegevens in</h3>
+        <label>Geslacht:</label>
+        <select id="gender">
+            <option value="man">Man</option>
+            <option value="vrouw">Vrouw</option>
+            <option value="anders">Anders</option>
+        </select>
+        <label>Leeftijd:</label>
+        <input type="number" id="age" min="10" max="100">
+        <button class="button" onclick="validateAndStartGame()">Ga door naar het spel</button>
+    </div>
+
+    <div class="container hidden" id="introPage">
+        <h2 style="text-align: center;">Jouw slimme badkamer van de toekomst</h2>
+        <p style="text-align: center;">
+            Wat vind jij belangrijk als mens? Wil je zelf bepalen wat er gebeurt, of laat je liever slimme technologie
+            beslissen? Vind je privacy belangrijk, of mag jouw badkamer alles over je weten en delen als dat je helpt?
+        </p>
+        <p style="text-align: center;">
+            Straks krijg je een paar situaties te zien die je aan het denken zetten. Je kiest steeds tussen twee opties
+            – niet goed of fout, gewoon jouw voorkeur.
+        </p>
+        <p style="text-align: center;">
+            Klaar om te ontdekken wat jij belangrijk vindt?
+        </p>
+
+
+        <button class="button" onclick="startGame()">Start het spel</button>
+    </div>
+
+
+    <div class="container hidden" id="dilemmaGame">
+        <h3 id="dilemmaText">Dilemma komt hier...</h3>
+        <div style="display: flex; justify-content: space-between; gap: 4%">
+            <button class="button" id="option1"></button>
+            <button class="button" id="option2"></button>
+        </div>
+    </div>
+
+    <div class="container hidden" id="result">
+        <h2 style="text-align: center;">Jouw slimme badkamer profiel</h2>
+        <p style="text-align: center;" id="profileText"></p>
+        <button class="button" onclick="restartGame()">Opnieuw spelen</button>
+    </div>
+
+    <div class="logo-fixed">
+        <img src="ULLB-logo-zwart.svg" alt="Logo" />
+    </div>
+
+    <script>
+        let allowDataStorage = false;
+        let allUsers = [];
+        let userData = {
+            toestemming: null,
+            leeftijd: null,
+            geslacht: null,
+            keuzes: []
+        };
+
+        let categoryScores = {
+            "privacy": 0,
+            "automatisering": 0,
+            "duurzaamheid": 0,
+            "veiligheid": 0,
+            "comfort": 0
+        };
+
+        const dilemmas = {
+            "1. Autonomie vs. Beïnvloeding": [
+                ["1.1 Een spiegel die je vriendelijk vraagt je ochtendplanning aan te passen als je vermoeid oogt op basis van slaapdata, huidanalyse en spierspanning.",
+                    "vs Een spiegel die automatisch afspraken uit je agenda schrapt of verzet als jouw toestand onder de ‘gezonde drempel’ zit."
+                ],
+                ["1.2 Een douche die je bij het instappen drie scenario’s biedt (kort verkwikkend, gemiddeld ontspannend, lang herstellend), afgestemd op je agenda en stressniveau.",
+                    "vs Een douche die start zodra je binnenstapt en zichzelf beëindigt zodra jouw stress-signalen gedaald zijn."
+                ],
+                ["1.3 Een slim badkamerkastje dat je vertelt welke producten je gebruikt en waar mogelijk tekorten of veroudering dreigen.",
+                    "vs Een kastje dat automatisch producten aanbeveelt en prioriteert, op basis van je huidanalyse, routines en voorraad."
+                ],
+                ["1.4 Een geurdispenser die jou eerst laat aangeven welk doel je wil bereiken (ontspanning, focus, energie) en daarna passende suggesties doet.",
+                    "vs Een geurdispenser die op basis van pupilgrootte, hartslag en ademhaling onmiddellijk kalmerende geuren verspreidt."
+                ],
+                ["1.5 Een bad dat jou vraagt of je wil afremmen na een stressvolle dag, en pas na toestemming de kraan aanzet.",
+                    "vs Een bad dat zichzelf automatisch begint te vullen zodra hij merkt dat je gestrest bent."
+                ]
+            ],
+            "2. Transparantie vs. Onzichtbaarheid": [
+                ["2.1 Een spiegel die live toont welke analyses hij uitvoert (huid, hartslag, houding) en je daarbij direct advies toont.",
+                    "vs Een spiegel die deze analyses wel uitvoert, maar je alleen laat weten als er iets afwijkends wordt gevonden."
+                ],
+                ["2.2 Een ventilatiesysteem dat met percentage-niveaus zichtbaar weergeeft waarom het inschakelt: CO₂, vochtigheid of geurdetectie.",
+                    "vs Een systeem dat automatisch inschakelt bij slechte luchtkwaliteit, maar daar niets over meldt."
+                ],
+                ["2.3 Een vloer die toont welke zones verwarmd worden en waarom, gebaseerd op je recente looproutes, aanwezigheid en tijdstip.",
+                    "vs Een vloer die automatisch zones verwarmt op basis van bewegingsvoorspelling, zonder iets te tonen."
+                ],
+                ["2.4 Een app waarin je elk datapunt, besluit en wijziging van je badkamer kunt nalezen.",
+                    "vs Een badkamersysteem waarin alles vanzelf gebeurt zonder transparantie."
+                ],
+                ["2.5 Een geurmodule die vooraf toont op welk tijdstip welke geur geactiveerd wordt en waarom.",
+                    "vs Een geurmodule die geuren activeert op basis van AI-leerpatronen uit je ochtendroutines, zonder uitleg."
+                ]
+            ],
+            "3. Comfort vs. Efficiëntie": [
+                ["3.1 Een slimme douche die zich volledig richt op comfort: ze stemt druk, temperatuur en geur op je voorkeuren af en blijft doorlopen zolang jij wil.",
+                    "vs Een douche die via sensoren je hartslag, spierspanning en gebruiksgeschiedenis meet en automatisch stopt zodra je voldoende hersteld of gereinigd bent."
+                ],
+                ["3.2 Een vloer die je ochtendroutine voorspelt op basis van tijd, gebruikspatronen en weer, en alvast voorverwarmt waar je straks zult lopen.",
+                    "vs Een vloer die pas begint met verwarmen als je er staat én het koud genoeg is."
+                ],
+                ["3.3 Een slimme spiegel die juist op drukke dagen je volledige verzorgingsritueel aanbiedt, met persoonlijke aandachtspunten en een rustig tempo.",
+                    "vs Een slimme spiegel die je ochtendroutine inkort op drukke dagen: minder stappen, kortere adviezen en snelle suggesties."
+                ],
+                ["3.4 Een bad dat jouw ideale ontspanning ondersteunt met wisselende temperatuur, zachte verlichting en geur, afgestemd op je stemming.",
+                    "vs Een bad dat op basis van je agenda en stressniveau berekent hoeveel ontspanning je nodig hebt en automatisch stopt zodra dat bereikt is."
+                ],
+                ["3.5 Een slimme kraan die zich automatisch instelt op jouw favoriete temperatuur en straalkracht zodra je je handen onder de kraan houdt.",
+                    "vs Een kraan die realtime meet hoeveel water je gebruikt en de straal automatisch afbouwt bij overmatig verbruik."
+                ]
+            ],
+            "4. Privacy vs. Inzicht": [
+                ["4.1 Een slim toilet dat enkel spoelt en geur detecteert om automatisch de ventilatie aan te passen, zonder iets op te slaan.",
+                    "vs Een slim toilet dat geur, kleur en samenstelling analyseert, afwijkingen signaleert en alles bijhoudt in een persoonlijk voedings- en gezondheidslogboek."
+                ],
+                ["4.2 Een slimme spiegel die alleen op jouw verzoek je huid scant, en op basis daarvan suggesties geeft voor verzorging.",
+                    "vs Een slimme spiegel die dagelijks automatisch je huidstructuur, roodheid, hydratatie en pigment analyseert en advies geeft."
+                ],
+                ["4.3 Een slimme weegschaal die enkel je gewicht en vetpercentage toont en die aanvullende metingen (zoals hartslag of ademhaling) pas uitvoert als jij dat expliciet kiest.",
+                    "vs Een slimme weegschaal die bij elke meting ook je ademfrequentie, hartslag en stressniveau vastlegt en koppelt aan je eet- en beweegpatronen."
+                ],
+                ["4.4 Een douche die via eenvoudige sensoren de temperatuur van je huid aanpast voor comfort, zonder verdere metingen of logging.",
+                    "vs Een douche die bij elke sessie je hartslag, ademhaling, spierspanning, maar ook je hele doucheroutine registreert en op basis daarvan je sessie aanpast én analyseert over tijd."
+                ],
+                ["4.5 Een slimme kraan die alleen detecteert of je handen schoon zijn en op basis daarvan start en stopt.",
+                    "vs Een slimme kraan die via huidcontact op je vingers microsporen van speeksel en zweet analyseert om je hydratatie, stressniveau en zelfs sporen van voeding of medicatie te meten en op te slaan."
+                ]
+            ],
+            "5. Emotionele sturing vs. Zelfreflectie": [
+                ["5.1 Een spiegel die bij tekenen van stress automatisch de verlichting dimt, rustgevende muziek aanzet en kalmerende geuren verspreidt.",
+                    "vs Een spiegel die subtiel je gezichtsuitdrukking analyseert en benoemt: “Je ogen staan vermoeid, je ademhaling is oppervlakkig”."
+                ],
+                ["5.2 Een geurdispenser die bij gespannen houding of verhoogde hartslag automatisch een kalmerende lavendelgeur verspreidt.",
+                    "vs Een geurdispenser die je een melding toont met de vraag of je wil kiezen uit kalmerende of activerende geuren."
+                ],
+                ["5.3 Een spiegel die je laat oefenen met subtiele glimlach-oefeningen en wenkbrauwbewegingen om sociaal ‘vriendelijker’ over te komen op basis van AI-feedback.",
+                    "vs Een spiegel die alleen aangeeft hoe neutraal, boos of gesloten je gezichtsuitdrukking is."
+                ],
+                ["5.4 Een badkamer die bij signalen van stress je routine aanpast: de spiegel toont minder informatie, geluiden en verlichting worden gedempt.",
+                    "vs Een badkamer die aangeeft dat je gestrest lijkt en voorstelt om je omgeving aan te passen"
+                ],
+                ["5.5 Een slimme badkamer die merkt dat je traag of prikkelbaar wakker bent geworden (via beweging, lichaamshouding en gezicht) en automatisch activerende muziek en een opwekkende geur aanzet.",
+                    "vs Een badkamer die je laat zien hoe je erbij staat: “Je bent langzaam gestart vandaag, wil je ondersteuning krijgen?”."
+                ]
+            ],
+            "6. Voorspelbaarheid vs. Adaptiviteit": [
+                ["6.1 Een douche die elke ochtend jouw vaste temperatuur, druk en tijdsduur biedt.",
+                    "vs Een douche die deze instellingen dagelijks aanpast op basis van weer, hartslag én hoeveel je geslapen hebt."
+                ],
+                ["6.2 Een geurmodule die jouw favoriete geurprofiel onthoudt en dagelijks reproduceert voor herkenning en comfort.",
+                    "vs Een geurmodule die geurkeuzes aanpast op basis van je slaapkwaliteit, hartslag en huidtemperatuur."
+                ],
+                ["6.3 Een spiegel die elke ochtend dezelfde interface toont: tijd, weer, planning en verzorgingstips.",
+                    "vs Een spiegel die dagelijks de inhoud en volgorde van de interface aanpast op basis van je agenda."
+                ],
+                ["6.4 Een slimme spiegel die elke ochtend dezelfde informatie verteld: weer, planning, verzorgingsadvies en motivatieboodschap.",
+                    "vs Een slimme spiegel die de inhoud en toon van de ochtendweergave aanpast op basis van je gezichtsexpressie, slaapscore en stressniveau."
+                ],
+                ["6.5 Een bad dat elke keer op exact dezelfde manier wordt klaargemaakt: vaste temperatuur, vulling, geur en tijd.",
+                    "vs Een bad dat zich aanpast aan je dag: het kiest op basis van je activiteit, hartslag en kalmtegraad hoe lang en warm het moet zijn, en welke geur past."
+                ]
+            ],
+            "7. Collectieve optimalisatie vs. Individuele optimalisatie": [
+                ["7.1 Een badkamer die op basis van gebruiksdata van het hele gezin energieverbruik, ventilatie en verlichting optimaliseert.",
+                    "vs Een badkamer die je herkent en automatisch je persoonlijke voorkeuren activeert voor geur, temperatuur en licht."
+                ],
+                ["7.2 Een luchtzuiveringssysteem dat collectief gemiddelde voorkeuren volgt voor geur en temperatuur.",
+                    "vs Een systeem dat jouw individuele voorkeur activeert zodra jij binnenkomt, zelfs als anderen dat onaangenaam vinden."
+                ],
+                ["7.3 Een vloer die zich verwarmt waar de meeste gebruikers vaak lopen (AI voorspelling van druktezones).",
+                    "vs Een vloer die jou herkent en alleen jouw paden voorverwarmt."
+                ],
+                ["7.4 Een geurdispenser die standaard neutrale geuren gebruikt zodat niemand zich stoort.",
+                    "vs Een dispenser die automatisch geurprofielen wisselt per gebruiker via gezichtsherkenning."
+                ],
+                ["7.5 Een spiegel die gezinsgemiddelden gebruikt om feedback te geven (“jullie slapen te weinig”)",
+                    "vs Een spiegel die jou apart aanspreekt."
+                ]
+            ],
+            "8. Bewustwording vs. Frictieloze ervaring": [
+                ["8.1 Een slim kraansysteem dat je bij elke handeling live feedback geeft over je waterverbruik en vergelijkt met je gemiddelde.",
+                    "vs Een systeem dat automatisch de straal en temperatuur optimaliseert om water te besparen, zonder iets te tonen of aan jou te vragen."
+                ],
+                ["8.2 Een douche die feedback geeft op je houding, ademhaling en spierspanning door subtiele trillingen en lichtveranderingen.",
+                    "vs Een douche die al die metingen stilletjes vertaalt naar de juiste instellingen."
+                ],
+                ["8.3 Een app die je badges geeft voor duurzaam gedrag: kort douchen, tanden poetsen volgens de ideale techniek.",
+                    "vs Een systeem dat deze gedragingen stilletjes aanstuurt via instellingen en gewoontes."
+                ],
+                ["8.4 Een spiegel die je laat zien hoeveel je beweegt, slaapt en stress ervaart in je week.",
+                    "vs Een spiegel die je alleen positief ondersteunt zonder je zwakke punten te tonen."
+                ],
+                ["8.5 Een ventilatiesysteem dat je live feedback toont over CO₂, vocht en fijnstof, en je actief waarschuwt wanneer ventileren belangrijk is.",
+                    "vs Een systeem dat continu automatisch regelt op basis van luchtkwaliteit zonder iets te tonen."
+                ]
+            ],
+            "9. Ingrijpen vs. Observeren": [
+                ["9.1 Een spiegel die bij opvallende signalen automatisch je digitale huisarts belt.",
+                    "vs Een spiegel die alleen suggesties toont en jou laat beslissen of je contact opneemt."
+                ],
+                ["9.2 Een slim toilet dat bij afwijkende geur- of kleurpatronen direct een melding stuurt naar je gezondheidsapp met de suggestie om een arts te raadplegen.",
+                    "vs Een toilet dat afwijkingen alleen registreert en pas na meerdere dagen patronen toont in een weekoverzicht."
+                ],
+                ["9.3 Een vloer die trilt bij te lang stilstaan, als reminder om te bewegen.",
+                    "vs Een vloer die enkel je gedrag analyseert en wekelijks samenvat."
+                ],
+                ["9.4 Een douche die na een bepaalde grens in tijd en waterverbruik automatisch de straal verlaagt, de temperatuur iets laat dalen en de verlichting iets dimt.",
+                    "vs Een douche die alleen een melding toont: “Je staat al 12 minuten onder de douche, wil je doorgaan?”."
+                ],
+                ["9.5 Een douche die bij tekenen van overprikkeling automatisch de straal verzacht, de temperatuur verlaagt en alle zintuiglijke prikkels minimaliseert",
+                    "vs Een douche die zulke signalen detecteert en op het scherm voorstelt: “Je lijkt overprikkeld, wil je de omgeving aanpassen?”."
+                ]
+            ]
+        };
+
+        let selectedDilemmas = [];
+        let dilemmaCategories = [];
+        let currentDilemmaIndex = 0;
+
+        function acceptDataSharing(choice) {
+            allowDataStorage = choice;
+            userData = {
+                toestemming: choice,
+                leeftijd: null,
+                geslacht: null,
+                keuzes: [],
+                sessionId: Date.now(),
+                _alreadySaved: false
+            };
+            document.getElementById("welcome").classList.add("hidden");
+            document.getElementById("userInfo").classList.remove("hidden");
+        }
+
+        function uploadToGoogleSheet() {
+            fetch("https://script.google.com/macros/s/AKfycbyGE5DNH5rXZP_q5IwTR89x7jMjeBGttD8BgfO484t2I92DZur3R-16z187kwL2rrVz-w/exec", {
+                    method: "POST",
+                    mode: "no-cors",
+                    body: JSON.stringify(userData),
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                })
+                .then(res => res.text())
+                .then(response => {
+                    console.log("Success:", response);
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                });
+        }
+
+        function validateAndStartGame() {
+            let age = document.getElementById("age").value;
+            let gender = document.getElementById("gender").value;
+            if (!age || age < 5 || age > 120) {
+                alert("Voer een geldige leeftijd in!");
+                return;
+            }
+            userData.leeftijd = age;
+            userData.geslacht = gender;
+            document.getElementById("userInfo").classList.add("hidden");
+            document.getElementById("introPage").classList.remove("hidden");
+
+        }
+
+        function startGame() {
+            document.getElementById("introPage").classList.add("hidden");
+            document.getElementById("dilemmaGame").classList.remove("hidden");
+            document.getElementById("userInfo").classList.add("hidden");
+            document.getElementById("dilemmaGame").classList.remove("hidden");
+            selectedDilemmas = [];
+            dilemmaCategories = [];
+            Object.keys(dilemmas).forEach(thema => {
+                const keuzes = dilemmas[thema];
+                const [optie1, optie2] = keuzes[Math.floor(Math.random() * keuzes.length)];
+
+                const cleanOptie1 = optie1.replace(/^\d+\.\d+\s*/, "").trim();
+                const cleanOptie2 = optie2.replace(/^vs\s*/i, "").trim();
+
+                selectedDilemmas.push([cleanOptie1, cleanOptie2]);
+                dilemmaCategories.push(thema);
+            });
+            currentDilemmaIndex = 0;
+            showDilemma();
+        }
+
+
+        function showDilemma() {
+            const [option1, option2] = selectedDilemmas[currentDilemmaIndex];
+            document.getElementById("dilemmaText").innerText = "Kies een van de volgende opties:";
+            document.getElementById("option1").innerText = option1;
+            document.getElementById("option2").innerText = option2;
+            const oldBtn1 = document.getElementById("option1");
+            const oldBtn2 = document.getElementById("option2");
+
+            const newBtn1 = oldBtn1.cloneNode(true);
+            const newBtn2 = oldBtn2.cloneNode(true);
+
+            oldBtn1.parentNode.replaceChild(newBtn1, oldBtn1);
+            oldBtn2.parentNode.replaceChild(newBtn2, oldBtn2);
+
+            newBtn1.innerText = option1;
+            newBtn2.innerText = option2;
+
+            newBtn1.onclick = () => makeChoice(false);
+            newBtn2.onclick = () => makeChoice(true);
+        }
+
+
+        function makeChoice(isRightSideChosen) {
+            const thema = dilemmaCategories[currentDilemmaIndex];
+            const [optieLinks, optieRechts] = selectedDilemmas[currentDilemmaIndex];
+
+            const cleanThema = thema.replace(/^\d+\.\s*/, "");
+            const [themaLinks, themaRechts] = cleanThema.split(/\s+vs\.?\s*/i);
+
+
+            const gekozenWaarde = isRightSideChosen ? themaRechts.trim() : themaLinks.trim();
+            const gekozenScenario = isRightSideChosen ? optieRechts.trim() : optieLinks.trim();
+
+            if (allowDataStorage) {
+                userData.keuzes.push({
+                    leeftijd: userData.leeftijd,
+                    geslacht: userData.geslacht,
+                    thema: thema,
+                    gekozen_waarde: gekozenWaarde,
+                    dilemma: `${optieLinks.trim()} ${optieRechts.trim()}`,
+                    gekozen_scenario: gekozenScenario
+                });
+            }
+
+            currentDilemmaIndex++;
+            if (currentDilemmaIndex < selectedDilemmas.length) {
+                showDilemma();
+            } else {
+                showResults();
+            }
+        }
+
+
+
+
+
+        function showResults() {
+            document.getElementById("dilemmaGame").classList.add("hidden");
+            document.getElementById("result").classList.remove("hidden");
+
+            if (!userData._alreadySaved && userData.keuzes.length === 9) {
+                allUsers.push(JSON.parse(JSON.stringify(userData)));
+                userData._alreadySaved = true;
+            }
+
+            const voorkeuren = userData.keuzes.map(k => k.gekozen_waarde.toLowerCase());
+            const profielregels = [];
+
+            if (voorkeuren.includes("privacy")) {
+                profielregels.push(
+                    "Je hecht waarde aan je privacy en vindt het belangrijk dat technologie jouw grenzen respecteert."
+                );
+            }
+            if (voorkeuren.includes("inzicht")) {
+                profielregels.push(
+                    "Je wil begrijpen wat er gebeurt — inzicht en data helpen jou om controle te houden.");
+            }
+            if (voorkeuren.includes("autonomie")) {
+                profielregels.push("Je maakt graag je eigen keuzes, zonder dat technologie de regie overneemt.");
+            }
+            if (voorkeuren.includes("beïnvloeding")) {
+                profielregels.push(
+                    "Je staat open voor technologie die jou begeleidt, zelfs als dat betekent dat je iets van controle inlevert."
+                );
+            }
+            if (voorkeuren.includes("transparantie")) {
+                profielregels.push("Je waardeert systemen die uitleg geven en zichtbaar maken wat er gebeurt.");
+            }
+            if (voorkeuren.includes("onzichtbaarheid")) {
+                profielregels.push(
+                    "Voor jou hoeft technologie niet op de voorgrond, zolang het maar werkt hoeft het niet op te vallen."
+                );
+            }
+            if (voorkeuren.includes("comfort")) {
+                profielregels.push(
+                    "Comfort staat centraal voor jou, je wil dat technologie het leven makkelijker maakt.");
+            }
+            if (voorkeuren.includes("efficiëntie")) {
+                profielregels.push(
+                    "Je kiest voor doelgerichtheid en duurzaamheid: technologie moet helpen om verspilling te voorkomen."
+                );
+            }
+            if (voorkeuren.includes("zelfreflectie")) {
+                profielregels.push(
+                    "Je wil technologie die jou helpt om stil te staan bij jezelf, zonder je te sturen.");
+            }
+            if (voorkeuren.includes("emotionele sturing")) {
+                profielregels.push("Je staat open voor technologie die actief inspeelt op je stemming en emoties.");
+            }
+
+            if (profielregels.length === 0) {
+                profielregels.push(
+                    "Je maakt genuanceerde keuzes en laat je niet makkelijk in een hokje stoppen. Dat is óók waardevol."
+                );
+            }
+
+            const profieltekst = profielregels.join(" ");
+            document.getElementById("profileText").innerText = profieltekst.trim();
+
+            if (allowDataStorage) {
+                uploadToGoogleSheet();
+            }
+
+        }
+
+
+        function restartGame() {
+            userData = {
+                toestemming: null,
+                leeftijd: null,
+                geslacht: null,
+                keuzes: [],
+                sessionId: Date.now(),
+                _alreadySaved: false
+            };
+            document.getElementById("result").classList.add("hidden");
+            document.getElementById("welcome").classList.remove("hidden");
+        }
+    </script>
+</body>
+
+</html>
